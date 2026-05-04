@@ -226,7 +226,17 @@ def xml_propfind_response(
         is404 = False
         if tag == xmlutils.make_clark("D:getetag"):
             if not is_collection or is_leaf:
-                element.text = item.etag
+                if isinstance(item, storage.BaseCollection):
+                    element.text = item.etag
+                else:
+                    if share_bday_automap:
+                        item_converted = item.convert_vcf_to_ics()
+                        if item_converted:
+                            element.text = item_converted.etag
+                        else:
+                            is404 = True
+                    else:
+                        element.text = item.etag
             else:
                 is404 = True
         elif tag == xmlutils.make_clark("D:getlastmodified"):
