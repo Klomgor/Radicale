@@ -168,7 +168,7 @@ def xml_propfind_response(
         props = []
         # Should list all properties that can be retrieved by the code below
         props.append(xmlutils.make_clark("D:principal-collection-set"))
-        if user:
+        if user and is_collection:
             props.append(xmlutils.make_clark("RADICALE:version"))
         props.append(xmlutils.make_clark("D:current-user-principal"))
         props.append(xmlutils.make_clark("D:current-user-privilege-set"))
