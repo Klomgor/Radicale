@@ -372,15 +372,23 @@ def xml_propfind_response(
                 element.append(supported_report)
         elif tag == xmlutils.make_clark("D:getcontentlength"):
             if not is_collection or is_leaf:
-                if collection.tag == "VADDRESSBOOK" and share_bday_automap and isinstance(item, storage.BaseCollection):
-                    logger.trace("PROPFIND/xml_propfind_response/getcontentlength: start bday automap handling")
-                    length = 0
-                    for entry in item.get_all():
-                        item_ics = entry.convert_vcf_to_ics()
-                        if item_ics is None:
-                            continue
-                        length += len(item_ics.vobject_item.serialize().encode(encoding))
-                    element.text = str(length)
+                if collection.tag == "VADDRESSBOOK" and share_bday_automap:
+                    if isinstance(item, storage.BaseCollection):
+                        logger.trace("PROPFIND/xml_propfind_response/getcontentlength: start bday automap handling for collection")
+                        length = 0
+                        for entry in item.get_all():
+                            item_ics = entry.convert_vcf_to_ics()
+                            if item_ics is None:
+                                continue
+                            length += len(item_ics.vobject_item.serialize().encode(encoding))
+                        element.text = str(length)
+                    else:
+                        logger.trace("PROPFIND/xml_propfind_response/getcontentlength: start bday automap handling for single item")
+                        item_converted = item.convert_vcf_to_ics()
+                        if item_converted is not None:
+                            element.text = str(len(item_converted.serialize()))
+                        else:
+                            is404 = True
                 else:
                     element.text = str(len(item.serialize().encode(encoding)))
             else:
