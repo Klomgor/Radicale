@@ -265,12 +265,14 @@ def xml_propfind_response(
         elif tag == xmlutils.make_clark("C:supported-calendar-component-set"):
             human_tag = xmlutils.make_human_tag(tag)
             if is_collection and is_leaf:
-                components_text = collection.get_meta(human_tag)
-                if components_text:
-                    components = components_text.split(",")
-                else:
-                    components = ["VTODO", "VEVENT", "VJOURNAL"]
-                if share_bday_automap:
+                components = []
+                if collection.tag == "VCALENDAR":
+                    components_text = collection.get_meta(human_tag)
+                    if components_text:
+                        components = components_text.split(",")
+                    else:
+                        components = ["VTODO", "VEVENT", "VJOURNAL"]
+                elif collection.tag == "VADDRESSBOOK" and share_bday_automap:
                     # enforce VEVENT-only
                     components = ["VEVENT"]
                 for component in components:
