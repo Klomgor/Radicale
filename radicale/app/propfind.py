@@ -589,6 +589,7 @@ class ApplicationPartPropfind(ApplicationBase):
                 user = share['Owner']
                 permissions_filter = share['Permissions']
                 shares[share['PathOrToken']] = share
+                logger.trace("PROPFIND/shares: add mapping: PathOrToken=%r PathMapped=%r", share['PathOrToken'], share['PathMapped'])
         access = Access(self._rights, user, path, permissions_filter)
         if not access.check("r"):
             return httputils.NOT_ALLOWED
