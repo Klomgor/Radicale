@@ -614,11 +614,17 @@ class ApplicationPartPropfind(ApplicationBase):
                 return httputils.NOT_ALLOWED
             # put item back
             items_iter = itertools.chain([item], items_iter)
-            for item, permission, raw_permissions in list(self._collect_allowed_items(items_iter, user)):
+            item_list = list(self._collect_allowed_items(items_iter, user))
+            len_item_list = len(item_list)
+            for item, permission, raw_permissions in item_list:
                 if self._sharing._enabled and share:
                     if share['Conversion'] == "bday" and not isinstance(item, storage.BaseCollection):
                         if not item.convert_vcf_to_ics():
-                            continue
+                            if len_item_list == 1:
+                                # only dedicated item requested
+                                return httputils.NOT_FOUND
+                            else:
+                                continue
                     allowed_items.append((item, permission, raw_permissions, share['Conversion']))
                 else:
                     allowed_items.append((item, permission, raw_permissions, None))
