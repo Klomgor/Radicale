@@ -86,14 +86,16 @@ class TestSharingApiSanity(BaseTest):
         _, headers, answer = self._sharing_api(sharing_type, action, check, login, data, content_type, accept, prefix=prefix)
         return _, headers, answer
 
-    def _propfind_allprop(self, path: str, login: str = "", prefix: Union[str, None] = None) -> dict:
+    def _propfind_allprop(self, path: str, login: str = "", prefix: Union[str, None] = None, check=207) -> dict:
         propfind_allprop = get_file_content("allprop.xml")
         if prefix is not None:
             path = prefix + path
-            _, responses = self.propfind(path=path, data=propfind_allprop, login=login, x_forwarded_for="127.0.0.2")
+            _, responses = self.propfind(path=path, data=propfind_allprop, login=login, x_forwarded_for="127.0.0.2", check=check)
         else:
-            _, responses = self.propfind(path=path, data=propfind_allprop, login=login)
+            _, responses = self.propfind(path=path, data=propfind_allprop, login=login, check=check)
         logging.info("response: %r", responses)
+        if check != 207:
+            return {}
         response = responses[path]
         assert not isinstance(response, int)
         return response
@@ -4772,8 +4774,8 @@ permissions: RrWw""")
             assert row['ShareType'] == "map"
             assert row['Conversion'] == "bday"
 
-            # check PROPFIND item as user
-            logging.info("\n*** PROPFIND item as user -> calendar")
+            # check PROPFIND collection as user
+            logging.info("\n*** PROPFIND collection as user -> calendar")
             response = self._propfind_allprop(path_shared_r, login="user:userpw")
             logging.debug("response: %r", response)
             assert "CR:supported-address-data" not in response
@@ -4781,8 +4783,18 @@ permissions: RrWw""")
             assert "C:supported-calendar-component-set" in response
             assert "D:current-user-privilege-set" in response
 
-            # check PROPFIND/privileges item as user
-            logging.info("\n*** PROPFIND/privileges item as user -> calendar")
+            logging.info("\n*** PROPFIND item as user -> calendar")
+            response = self._propfind_allprop(path_shared_r + "contact2-with-bday.ics", login="user:userpw")
+            logging.debug("response: %r", response)
+            assert "CR:supported-address-data" not in response
+            assert "D:sync-token" not in response
+            assert "D:current-user-privilege-set" in response
+
+            logging.info("\n*** PROPFIND item as user with unsupported bday conversion -> not found")
+            response = self._propfind_allprop(path_shared_r + "contact1.ics", login="user:userpw", check=404)
+
+            # check PROPFIND/privileges collection as user
+            logging.info("\n*** PROPFIND/privileges collection as user -> calendar")
             privileges_list = self._propfind_privileges(path_shared_r, login="user:userpw")
             assert "D:read" in privileges_list
             assert "D:write-content" not in privileges_list
@@ -5168,6 +5180,12 @@ permissions: RrWw""")
             logging.debug("response %r: %r", path_mapped, response)
             assert "C:supported-calendar-component-set" in response
             assert path_shared not in responses
+            assert "D:resourcetype" in response
+            status, resourcetype = response["D:resourcetype"]
+            resourcetypes = resourcetype.find(xmlutils.make_clark("CR:addressbook"))
+            assert resourcetypes is not None
+            assert "{urn:ietf:params:xml:ns:carddav}addressbook" in resourcetypes.tag
+            assert "{urn:ietf:params:xml:ns:caldav}calendar" not in resourcetypes.tag
 
             # enable + unhide
             logging.info("\n*** enable+unhide bday owner to itself -> ok")
@@ -5196,11 +5214,25 @@ permissions: RrWw""")
   </prop>
 </propfind>""", login="owner:ownerpw", HTTP_DEPTH="1")
             # logging.debug("responses: %r", responses)
-            response = responses[path_mapped]
+            response = responses[path_shared]
             assert not isinstance(response, int)
             logging.debug("response %r: %r", path_mapped, response)
             assert "C:supported-calendar-component-set" in response
             assert path_shared in responses
+            status, resourcetype = response["D:resourcetype"]
+            resourcetypes = resourcetype.find(xmlutils.make_clark("C:calendar"))
+            assert resourcetypes is not None
+            assert "{urn:ietf:params:xml:ns:carddav}addressbook" not in resourcetypes.tag
+            assert "{urn:ietf:params:xml:ns:caldav}calendar" in resourcetypes.tag
+            status, sup_cal_comp_set = response["C:supported-calendar-component-set"]
+            sup_cal_comp_sets = sup_cal_comp_set.findall(xmlutils.make_clark("C:comp"))
+            comp_attr = []
+            for comp in sup_cal_comp_sets:
+                comp_attr.append(comp.attrib)
+                logging.debug("comp: %r", comp.attrib)
+            assert {'name': 'VEVENT'} in comp_attr
+            assert {'name': 'VTODO'} not in comp_attr
+            assert {'name': 'VJOURNAL'} not in comp_attr
 
             # check PROPFIND item as owner
             logging.info("\n*** PROPFIND item as owner -> calendar")
