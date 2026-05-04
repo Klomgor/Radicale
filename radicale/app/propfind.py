@@ -158,7 +158,7 @@ def xml_propfind_response(
         # backmap
         if uri.startswith(share['PathMapped']):
             uri = str(share['PathOrToken']) + uri.removeprefix(share['PathMapped'])
-        if share_bday_automap and not uri.endswith("/"):
+        if share_bday_automap and uri.endswith(".vcf"):
             uri = uri.rstrip(".vcf") + ".ics"
 
     href.text = xmlutils.make_href(base_prefix, uri)
@@ -168,7 +168,7 @@ def xml_propfind_response(
         props = []
         # Should list all properties that can be retrieved by the code below
         props.append(xmlutils.make_clark("D:principal-collection-set"))
-        if user:
+        if user and is_collection:
             props.append(xmlutils.make_clark("RADICALE:version"))
         props.append(xmlutils.make_clark("D:current-user-principal"))
         props.append(xmlutils.make_clark("D:current-user-privilege-set"))
@@ -226,7 +226,17 @@ def xml_propfind_response(
         is404 = False
         if tag == xmlutils.make_clark("D:getetag"):
             if not is_collection or is_leaf:
-                element.text = item.etag
+                if isinstance(item, storage.BaseCollection):
+                    element.text = item.etag
+                else:
+                    if share_bday_automap:
+                        item_converted = item.convert_vcf_to_ics()
+                        if item_converted:
+                            element.text = item_converted.etag
+                        else:
+                            is404 = True
+                    else:
+                        element.text = item.etag
             else:
                 is404 = True
         elif tag == xmlutils.make_clark("D:getlastmodified"):
@@ -255,12 +265,14 @@ def xml_propfind_response(
         elif tag == xmlutils.make_clark("C:supported-calendar-component-set"):
             human_tag = xmlutils.make_human_tag(tag)
             if is_collection and is_leaf:
-                components_text = collection.get_meta(human_tag)
-                if components_text:
-                    components = components_text.split(",")
-                else:
-                    components = ["VTODO", "VEVENT", "VJOURNAL"]
-                if share_bday_automap:
+                components = []
+                if collection.tag == "VCALENDAR":
+                    components_text = collection.get_meta(human_tag)
+                    if components_text:
+                        components = components_text.split(",")
+                    else:
+                        components = ["VTODO", "VEVENT", "VJOURNAL"]
+                elif collection.tag == "VADDRESSBOOK" and share_bday_automap:
                     # enforce VEVENT-only
                     components = ["VEVENT"]
                 for component in components:
@@ -360,15 +372,23 @@ def xml_propfind_response(
                 element.append(supported_report)
         elif tag == xmlutils.make_clark("D:getcontentlength"):
             if not is_collection or is_leaf:
-                if collection.tag == "VADDRESSBOOK" and share_bday_automap and isinstance(item, storage.BaseCollection):
-                    logger.trace("PROPFIND/xml_propfind_response/getcontentlength: start bday automap handling")
-                    length = 0
-                    for entry in item.get_all():
-                        item_ics = entry.convert_vcf_to_ics()
-                        if item_ics is None:
-                            continue
-                        length += len(item_ics.vobject_item.serialize().encode(encoding))
-                    element.text = str(length)
+                if collection.tag == "VADDRESSBOOK" and share_bday_automap:
+                    if isinstance(item, storage.BaseCollection):
+                        logger.trace("PROPFIND/xml_propfind_response/getcontentlength: start bday automap handling for collection")
+                        length = 0
+                        for entry in item.get_all():
+                            item_ics = entry.convert_vcf_to_ics()
+                            if item_ics is None:
+                                continue
+                            length += len(item_ics.vobject_item.serialize().encode(encoding))
+                        element.text = str(length)
+                    else:
+                        logger.trace("PROPFIND/xml_propfind_response/getcontentlength: start bday automap handling for single item")
+                        item_converted = item.convert_vcf_to_ics()
+                        if item_converted is not None:
+                            element.text = str(len(item_converted.serialize()))
+                        else:
+                            is404 = True
                 else:
                     element.text = str(len(item.serialize().encode(encoding)))
             else:
@@ -569,6 +589,7 @@ class ApplicationPartPropfind(ApplicationBase):
                 user = share['Owner']
                 permissions_filter = share['Permissions']
                 shares[share['PathOrToken']] = share
+                logger.trace("PROPFIND/shares: add mapping: PathOrToken=%r PathMapped=%r", share['PathOrToken'], share['PathMapped'])
         access = Access(self._rights, user, path, permissions_filter)
         if not access.check("r"):
             return httputils.NOT_ALLOWED
@@ -594,11 +615,17 @@ class ApplicationPartPropfind(ApplicationBase):
                 return httputils.NOT_ALLOWED
             # put item back
             items_iter = itertools.chain([item], items_iter)
-            for item, permission, raw_permissions in list(self._collect_allowed_items(items_iter, user)):
+            item_list = list(self._collect_allowed_items(items_iter, user))
+            len_item_list = len(item_list)
+            for item, permission, raw_permissions in item_list:
                 if self._sharing._enabled and share:
                     if share['Conversion'] == "bday" and not isinstance(item, storage.BaseCollection):
                         if not item.convert_vcf_to_ics():
-                            continue
+                            if len_item_list == 1:
+                                # only dedicated item requested
+                                return httputils.NOT_FOUND
+                            else:
+                                continue
                     allowed_items.append((item, permission, raw_permissions, share['Conversion']))
                 else:
                     allowed_items.append((item, permission, raw_permissions, None))

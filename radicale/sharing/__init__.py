@@ -500,7 +500,9 @@ class BaseSharing:
                 if result['Conversion'] == "bday" and result['PathMapped'].endswith(".ics"):
                     result['PathMapped'] = result['PathMapped'].removesuffix(".ics") + ".vcf"
 
-                logger.info("sharing/%s: resolved path %r->%r, user %r->%r, Permissions=%r Conversion=%r", "map", path, result['PathMapped'], user, result['Owner'], result['Permissions'], result['Conversion'])
+                result['PathOrToken'] = path
+
+                logger.info("sharing/%s: resolved path %r->%r, user %r->%r, Permissions=%r Conversion=%r", "map", result['PathOrToken'], result['PathMapped'], user, result['Owner'], result['Permissions'], result['Conversion'])
                 return result
 
             return None

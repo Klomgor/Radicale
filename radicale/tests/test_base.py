@@ -905,7 +905,8 @@ permissions: RrWw""")
         status, prop = response["D:getetag"]
         assert status == 200 and not prop.text
 
-    def test_propfind_allprop(self) -> None:
+    def test_propfind_vcalendar_allprop(self) -> None:
+        self.configure({"logging": {"limit_content": 5000}})
         self.mkcalendar("/calendar.ics/")
         event = get_file_content("event1.ics")
         self.put("/calendar.ics/event.ics", event)
@@ -916,8 +917,53 @@ permissions: RrWw""")
         status, prop = response["D:sync-token"]
         assert status == 200 and prop.text
         assert "C:max-resource-size" not in response
+        assert "C:supported-calendar-component-set" in response
+        assert "CR:supported-address-data" not in response
+        assert "D:resourcetype" in response
+        status, resourcetype = response["D:resourcetype"]
+        resourcetypes = resourcetype.find(xmlutils.make_clark("C:calendar"))
+        assert resourcetypes is not None
+        assert "{urn:ietf:params:xml:ns:caldav}calendar" in resourcetypes.tag
+        assert "{urn:ietf:params:xml:ns:carddav}addressbook" not in resourcetypes.tag
+        status, sup_cal_comp_set = response["C:supported-calendar-component-set"]
+        sup_cal_comp_sets = sup_cal_comp_set.findall(xmlutils.make_clark("C:comp"))
+        comp_attr = []
+        for comp in sup_cal_comp_sets:
+            comp_attr.append(comp.attrib)
+            logging.debug("comp: %r", comp.attrib)
+        assert {'name': 'VEVENT'} in comp_attr
+        assert {'name': 'VTODO'} in comp_attr
+        assert {'name': 'VJOURNAL'} in comp_attr
         _, responses = self.propfind("/calendar.ics/event.ics", propfind)
         response = responses["/calendar.ics/event.ics"]
+        assert not isinstance(response, int)
+        status, prop = response["D:getetag"]
+        assert status == 200 and prop.text
+        assert "C:max-resource-size" not in response
+        _, responses = self.propfind("/calendar.ics/event-not-exists.ics", propfind, check=404)
+
+    def test_propfind_vaddressbook_allprop(self) -> None:
+        self.configure({"logging": {"limit_content": 5000}})
+        self.create_addressbook("/addressbook.vcf/")
+        contact = get_file_content("contact1.vcf")
+        self.put("/addressbook.vcf/contact1.vcf", contact)
+        propfind = get_file_content("allprop.xml")
+        _, responses = self.propfind("/addressbook.vcf/", propfind)
+        response = responses["/addressbook.vcf/"]
+        assert not isinstance(response, int)
+        status, prop = response["D:sync-token"]
+        assert status == 200 and prop.text
+        assert "C:max-resource-size" not in response
+        assert "C:supported-calendar-component-set" not in response
+        assert "CR:supported-address-data" in response
+        assert "D:resourcetype" in response
+        status, resourcetype = response["D:resourcetype"]
+        resourcetypes = resourcetype.find(xmlutils.make_clark("CR:addressbook"))
+        assert resourcetypes is not None
+        assert "{urn:ietf:params:xml:ns:carddav}addressbook" in resourcetypes.tag
+        assert "{urn:ietf:params:xml:ns:caldav}calendar" not in resourcetypes.tag
+        _, responses = self.propfind("/addressbook.vcf/contact1.vcf", propfind)
+        response = responses["/addressbook.vcf/contact1.vcf"]
         assert not isinstance(response, int)
         status, prop = response["D:getetag"]
         assert status == 200 and prop.text
