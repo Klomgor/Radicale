@@ -315,7 +315,7 @@ if (keys %Requests) {
       printf "%-" . $length . "s | %7d |  %7.3f%% |\n", $req, $Requests{$req}, (($Requests{$req} * 100) / $sum);
    }
    print "-" x($length + 24) . "\n";
-   printf "%-18s | %7d |  %7.3f%% |\n", "", $sum, 100;
+   printf "%-" . $length . "s | %7d |  %7.3f%% |\n", "", $sum, 100;
 }
 
 if (keys %Responses) {
