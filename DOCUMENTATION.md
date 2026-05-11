@@ -942,7 +942,7 @@ Available types are:
 
 Default: `minimal`
 
-##### validate_path_type
+##### validate_path_value
 
 _(>= 3.7.2)_
 
