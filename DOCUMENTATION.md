@@ -927,6 +927,35 @@ Strip script name from URI if called by reverse proxy
 
 Default: (taken from HTTP_X_SCRIPT_NAME or SCRIPT_NAME)
 
+##### validate_user_value
+
+_(>= 3.7.2)_
+
+Validate user value content
+
+Available types are:
+* `none`
+* `minimal` (control and some special chars)
+* `unicode-letter` (unicode letters)
+* `no-unicode` (no unicode)
+* `strict` (reduced ASCII set)
+
+Default: `minimal`
+
+##### validate_path_type
+
+_(>= 3.7.2)_
+
+Validate path value content
+
+* `none`
+* `minimal` (control and some special chars)
+* `unicode-letter` (unicode letters)
+* `no-unicode` (no unicode)
+* `strict` (reduced ASCII set)
+
+Default: `minimal`
+
 #### [encoding]
 
 ##### request
@@ -1616,35 +1645,6 @@ _(>= 3.5.8)_
 Strict preconditions check on PUT in case item already exists [RFC6352#9.2](https://www.rfc-editor.org/rfc/rfc6352#section-9.2)
 
 Default: `False`
-
-##### validate_user_value
-
-_(>= 3.7.2)_
-
-Validate user value content
-
-Available types are:
-* `none`
-* `minimal` (control and some special chars)
-* `unicode-letter` (unicode letters)
-* `no-unicode` (no unicode)
-* `strict` (reduced ASCII set)
-
-Default: `minimal`
-
-##### validate_path_type
-
-_(>= 3.7.2)_
-
-Validate path value content
-
-* `none`
-* `minimal` (control and some special chars)
-* `unicode-letter` (unicode letters)
-* `no-unicode` (no unicode)
-* `strict` (reduced ASCII set)
-
-Default: `minimal`
 
 ##### hook
 
