@@ -647,6 +647,32 @@ permissions: RrWw""")
         self.get(path1, check=check_get2)
         self.get(path2, check=check_get1)
 
+    def test_move_letter_unicode_dst_reject(self) -> None:
+        """Move a item."""
+        self.configure({"server": {"validate_path_value": "unicode-letter"}})
+        self.mkcalendar("/calendar.ics/")
+        event = get_file_content("event1.ics")
+        path1 = "/calendar.ics/event1.ics"
+        path2 = "/calendar.ics/event😁2.ics"
+        self.put(path1, event)
+        self.request("MOVE", path1, check=400,
+                     HTTP_DESTINATION="http://127.0.0.1/"+path2)
+        self.get(path1, check=200)
+        self.get(path2, check=400)
+
+    def test_move_letter_unicode_dst_pass(self) -> None:
+        """Move a item."""
+        self.configure({"server": {"validate_path_value": "unicode-letter"}})
+        self.mkcalendar("/calendar.ics/")
+        event = get_file_content("event1.ics")
+        path1 = "/calendar.ics/event1.ics"
+        path2 = "/calendar.ics/event2.ics"
+        self.put(path1, event)
+        self.request("MOVE", path1, check=201,
+                     HTTP_DESTINATION="http://127.0.0.1/"+path2)
+        self.get(path1, check=404)
+        self.get(path2, check=200)
+
     def test_move_strict_unicode_dst(self) -> None:
         """Move a item."""
         self.configure({"server": {"validate_path_value": "strict"}})
