@@ -74,6 +74,7 @@ def _check_format(self: storage.BaseStorage,
         if check_unicode_letter:
             if c not in whitelist_unicode:
                 if unicodedata.category(c)[0] != "L":
+                    logger.trace("_check_format found %r (%r)", c, unicodedata.category(c)[0])
                     return False
         if check_no_unicode:
             if ord(c) > 255:
