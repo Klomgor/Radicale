@@ -1803,6 +1803,65 @@ Log response content (body) on `level = debug`
 
 Default: `False`
 
+##### request_header_on_notice_condition
+
+_(>= 3.7.3)_
+
+Log request header on `level = notice` if condition is fulfilled
+
+Default: `{}`
+
+Format: JSON structure as text
+
+Supported tokens:
+  * `method`
+  * `path`
+  * `useragent`
+  * `host` (IPv4/IPv6 address/network)
+  * `login`
+  * `status` (only supported on responses)
+
+Supported matches:
+  * str: `startswith`, `endswith`, `equal`, `re`
+  * int: `==`, `<`, `<=`, `>=`, `>`, `!=`
+  * IP address: `equal`, `==`, `!=`
+  * IP network: `included`, `excluded`
+
+Examples:
+  * `{"method": {"match": "equal", "value": "GET"}, "login": {"match": "equal", "value": "owner"}}`
+  * `{"method": {"match": "equal", "value": "PUT"}, "status": {"match": ">=", "value": "201"}, "host": {"match": "included", "value": "127.0.0.0/8"}}`
+  * `{"method": {"match": "equal", "value": "PUT"}, "path": {"match": "re", "value": "ev?nt[01]"}}`
+
+##### request_content_on_notice_condition
+
+_(>= 3.7.3)_
+
+Log request content (body) on `level = notice` if condition is fulfilled
+
+Default: `{}`
+
+Format: see `request_header_on_notice_condition`
+
+##### response_header_on_notice_condition
+
+_(>= 3.7.3)_
+
+Log response header on `level = notice` if condition is fulfilled
+
+Default: `{}`
+
+Format: see `request_header_on_notice_condition`
+
+##### response_content_on_notice_condition
+
+_(>= 3.7.3)_
+
+Log response content (body) on `level = notice` if condition is fulfilled
+
+Default: `{}`
+
+Format: see `request_header_on_notice_condition`
+
 ##### rights_rule_doesnt_match_on_debug
 
 _(>= 3.2.3)_
