@@ -1,7 +1,7 @@
 # This file is part of Radicale - CalDAV and CardDAV server
 # Copyright © 2011-2017 Guillaume Ayoub
 # Copyright © 2017-2023 Unrud <unrud@outlook.com>
-# Copyright © 2024-2024 Peter Bieringer <pb@bieringer.de>
+# Copyright © 2024-2026 Peter Bieringer <pb@bieringer.de>
 #
 # This library is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,8 +28,10 @@ Log messages are sent to the first available target of:
 
 import contextlib
 import io
+import ipaddress
 import logging
 import os
+import re
 import socket
 import struct
 import sys
@@ -47,6 +49,19 @@ LOGGER_FORMATS: Mapping[str, str] = {
     "journal": "[%(ident)s] [%(levelname)s] %(message)s",
 }
 DATE_FORMAT: str = "%Y-%m-%d %H:%M:%S %z"
+
+LOG_CONDITION_TOKEN: dict = {"method": "str",
+                             "path": "str",
+                             "useragent": "str",
+                             "host": "ipaddress",
+                             "login": "str",
+                             "status": "int",
+                             }
+LOG_CONDITION_CONDITION: list = ["match", "value"]
+LOG_CONDITION_MATCH_STR: list = ["startswith", "endswith", "equal", "re", "==", "="]
+LOG_CONDITION_MATCH_INT: list = ["=", ">", "<", "<=", ">=", "equal", "==", "<>", "!="]
+LOG_CONDITION_MATCH_IPADDRESS: list = ["==", "equal", "=", "<>", "!="]
+LOG_CONDITION_MATCH_IPNETWORK: list = ["included", "excluded", "incl", "excl"]
 
 LOG_LEVEL_OPTIONS: list = ["trace", "debug", "info", "notice", "warning", "error", "critical", "alert"]
 
@@ -326,3 +341,90 @@ def set_level(level: Union[int, str], backtrace_on_debug: bool, trace_filter: st
             logger.addFilter(PassTRACETOKENFilter(trace_filter))
         else:
             logger.trace("Logging messages on 'trace' level enabled")
+
+
+def log_conditional(name: str, condition: dict, value: dict) -> bool:
+    logger.trace("log/conditional/%s/CHECK : condition=%r value=%r", name, condition, value)
+    # "and" combination
+    condition_active = False
+    for token in condition:
+        condition_active = True
+        if LOG_CONDITION_TOKEN[token] == "str":
+            logger.trace("log/conditional/%s/%s/string/CHECK  : %r %s %r", name, token, condition[token]["value"], condition[token]["match"], value[token])
+            if condition[token]["match"] in ["equal", "==", "="]:
+                if not condition[token]["value"] == value[token]:
+                    return False
+            elif condition[token]["match"] in ["startswith"]:
+                if not value[token].startswith(condition[token]["value"]):
+                    return False
+            elif condition[token]["match"] in ["endswith"]:
+                if not value[token].endswith(condition[token]["value"]):
+                    return False
+            elif condition[token]["match"] in ["re"]:
+                if not re.search(condition[token]["value"], value[token]):
+                    return False
+            logger.trace("log/conditional/%s/%s/string/PASSED : %r %s %r", name, token, condition[token]["value"], condition[token]["match"], value[token])
+
+        elif LOG_CONDITION_TOKEN[token] == "int":
+            condition[token]["value"] = int(condition[token]["value"])
+            logger.trace("log/conditional/%s/%s/integer/CHECK  : %r %s %r", name, token, condition[token]["value"], condition[token]["match"], value[token])
+            if condition[token]["match"] in ["equal", "==", "="]:
+                if not condition[token]["value"] == value[token]:
+                    return False
+            elif condition[token]["match"] in ["<"]:
+                if not condition[token]["value"] < value[token]:
+                    return False
+            elif condition[token]["match"] in ["<="]:
+                if not condition[token]["value"] <= value[token]:
+                    return False
+            elif condition[token]["match"] in [">"]:
+                if not condition[token]["value"] > value[token]:
+                    return False
+            elif condition[token]["match"] in [">="]:
+                if not condition[token]["value"] >= value[token]:
+                    return False
+            elif condition[token]["match"] in ["<>", "!="]:
+                if not condition[token]["value"] != value[token]:
+                    return False
+            logger.trace("log/conditional/%s/%s/integer/PASSED : %r %s %r", name, token, condition[token]["value"], condition[token]["match"], value[token])
+
+        elif LOG_CONDITION_TOKEN[token] == "ipaddress":
+            logger.trace("log/conditional/%s/%s/ip/CHECK  : %r %s %r", name, token, condition[token]["value"], condition[token]["match"], value[token])
+            # simple IP address check
+            if condition[token]["match"] in ["equal", "==", "="]:
+                if not condition[token]["value"] == value[token]:
+                    return False
+            elif condition[token]["match"] in ["<>", "!="]:
+                if not condition[token]["value"] != value[token]:
+                    return False
+            elif condition[token]["match"] in ["included", "incl", "excluded", "excl"]:
+                if condition[token]["match"] in ["included", "incl"]:
+                    if value[token] == "unknown":
+                        return False
+                    else:
+                        ip_net = ipaddress.ip_network(value[token])
+                        ip = ipaddress.ip_network(condition[token]["value"])
+                        if type(ip_net) is ipaddress.IPv4Network and type(ip) is ipaddress.IPv4Network:
+                            if not ip_net.subnet_of(ip):
+                                return False
+                        elif type(ip_net) is ipaddress.IPv6Network and type(ip) is ipaddress.IPv6Network:
+                            if not ip_net.subnet_of(ip):
+                                return False
+                        else:
+                            return False
+                elif condition[token]["match"] in ["excluded", "excl"]:
+                    if value[token] != "unknown":
+                        ip_net = ipaddress.ip_network(value[token])
+                        if type(ip_net) is ipaddress.IPv4Network and type(ip) is ipaddress.IPv4Network:
+                            if ip_net.subnet_of(ip):
+                                return False
+                        elif type(ip_net) is ipaddress.IPv6Network and type(ip) is ipaddress.IPv6Network:
+                            if ip_net.subnet_of(ip):
+                                return False
+                logger.trace("log/conditional/%s/%s/ip/PASSED : %r %s %r", name, token, condition[token]["value"], condition[token]["match"], value[token])
+            else:
+                logger.trace("log/conditional/%s/%s/ip/SKIPPED: %r %s %r", name, token, condition[token]["value"], condition[token]["match"], value[token])
+
+    # only return 'True' if at least one condition was found
+    logger.trace("log/conditional/%s/PASSED: condition=%r value=%r", name, condition, value)
+    return condition_active

@@ -1,5 +1,6 @@
 # This file is part of Radicale - CalDAV and CardDAV server
-# Copyright © 2017-2018 Unrud <unrud@outlook.com>
+# Copyright © 2017-2022 Unrud <unrud@outlook.com>
+# Copyright © 2026-2026 Peter Bieringer <pb@bieringer.de>
 #
 # This library is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,6 +35,6 @@ FALLBACK_MIMETYPE = httputils.FALLBACK_MIMETYPE  # deprecated
 class Web(web.BaseWeb):
 
     def get(self, environ: types.WSGIEnviron, base_prefix: str, path: str,
-            user: str) -> types.WSGIResponse:
+            user: str, request_info: dict) -> types.WSGIResponse:
         return httputils.serve_resource("radicale.web", "internal_data",
                                         base_prefix, path)

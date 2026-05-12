@@ -1,6 +1,6 @@
 # This file is part of Radicale - CalDAV and CardDAV server
 # Copyright © 2017-2021 Unrud <unrud@outlook.com>
-# Copyright © 2025-2025 Peter Bieringer <pb@bieringer.de>
+# Copyright © 2025-2026 Peter Bieringer <pb@bieringer.de>
 #
 # This library is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,10 +28,10 @@ from radicale import httputils, types, web
 class Web(web.BaseWeb):
 
     def get(self, environ: types.WSGIEnviron, base_prefix: str, path: str,
-            user: str) -> types.WSGIResponse:
+            user: str, request_info: dict) -> types.WSGIResponse:
         return client.OK, {"Content-Type": "text/plain"}, "custom", None
 
     def post(self, environ: types.WSGIEnviron, base_prefix: str, path: str,
-             user: str) -> types.WSGIResponse:
-        content = httputils.read_request_body(self.configuration, environ)
+             user: str, request_info: dict) -> types.WSGIResponse:
+        content = httputils.read_request_body(self.configuration, environ, request_info)
         return client.OK, {"Content-Type": "text/plain"}, "echo:" + content, None

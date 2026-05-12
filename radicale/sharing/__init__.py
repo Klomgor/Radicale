@@ -511,7 +511,7 @@ class BaseSharing:
             return None
 
     # *** POST API ***
-    def post(self, environ: types.WSGIEnviron, base_prefix: str, path: str, user: str) -> types.WSGIResponse:
+    def post(self, environ: types.WSGIEnviron, base_prefix: str, path: str, user: str, request_info: dict) -> types.WSGIResponse:
         # Late import to avoid circular dependency in config
         from radicale.app import base as app_base
         from radicale.app.base import Access
@@ -616,7 +616,7 @@ class BaseSharing:
         logger.trace("sharing/API: called by authenticated user: %r", user)
         # read POST data
         try:
-            request_body = httputils.read_request_body(self.configuration, environ)
+            request_body = httputils.read_request_body(self.configuration, environ, request_info)
         except RuntimeError as e:
             logger.warning("Bad POST request on %r (read_request_body): %s", path, e, exc_info=True)
             return httputils.bad_request("Failed read POST request body")

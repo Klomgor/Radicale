@@ -49,7 +49,7 @@ def get_server_netloc(environ: types.WSGIEnviron, force_port: bool = False):
 class ApplicationPartMove(ApplicationBase):
 
     def do_MOVE(self, environ: types.WSGIEnviron, base_prefix: str,
-                path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+                path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage MOVE request."""
         raw_dest = environ.get("HTTP_DESTINATION", "")
 
@@ -136,7 +136,7 @@ class ApplicationPartMove(ApplicationBase):
                     to_collection.has_uid(item.uid)):
                 return self._webdav_error_response(
                     client.CONFLICT, "%s:no-uid-conflict" % (
-                        "C" if collection_tag == "VCALENDAR" else "CR"))
+                        "C" if collection_tag == "VCALENDAR" else "CR"), request_info)
             to_href = posixpath.basename(pathutils.strip_path(to_path))
             try:
                 self._storage.move(item, to_collection, to_href)

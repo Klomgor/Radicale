@@ -68,7 +68,7 @@ class ApplicationPartGet(ApplicationBase):
         return value
 
     def do_GET(self, environ: types.WSGIEnviron, base_prefix: str, path: str,
-               user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+               user: str, request_info: dict) -> types.WSGIResponse:
         """Manage GET request."""
         # Redirect to /.web if the root path is requested
         if not pathutils.strip_path(path):
@@ -84,7 +84,7 @@ class ApplicationPartGet(ApplicationBase):
                             base_prefix + unsafe_path, location)
                 return httputils.redirect(location, client.MOVED_PERMANENTLY)
             # Dispatch /.web path to web module
-            return self._web.get(environ, base_prefix, path, user)
+            return self._web.get(environ, base_prefix, path, user, request_info)
         permissions_filter = None
         share = None
         if self._sharing._enabled:

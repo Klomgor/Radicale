@@ -574,7 +574,7 @@ class ApplicationPartPropfind(ApplicationBase):
                 yield item, permission, raw_permissions
 
     def do_PROPFIND(self, environ: types.WSGIEnviron, base_prefix: str,
-                    path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+                    path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage PROPFIND request."""
         http_depth = environ.get("HTTP_DEPTH", "0")
         permissions_filter = None
@@ -594,7 +594,7 @@ class ApplicationPartPropfind(ApplicationBase):
         if not access.check("r"):
             return httputils.NOT_ALLOWED
         try:
-            xml_content = self._read_xml_request_body(environ)
+            xml_content = self._read_xml_request_body(environ, request_info)
         except RuntimeError as e:
             logger.warning(
                 "Bad PROPFIND request on %r: %s", path, e, exc_info=True)
@@ -659,4 +659,5 @@ class ApplicationPartPropfind(ApplicationBase):
                                   allowed_items, user, self._encoding, max_resource_size=self._max_resource_size, shares=shares)
         if xml_answer is None:
             return httputils.NOT_ALLOWED
-        return client.MULTI_STATUS, headers, self._xml_response(xml_answer), xmlutils.pretty_xml(xml_content)
+        request_info["status"] = client.MULTI_STATUS
+        return client.MULTI_STATUS, headers, self._xml_response(xml_answer, request_info), xmlutils.pretty_xml(xml_content)

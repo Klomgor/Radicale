@@ -55,7 +55,7 @@ def xml_delete(base_prefix: str, path: str, collection: storage.BaseCollection,
 class ApplicationPartDelete(ApplicationBase):
 
     def do_DELETE(self, environ: types.WSGIEnviron, base_prefix: str,
-                  path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+                  path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage DELETE request."""
         actor = user
         permissions_filter = None
@@ -126,4 +126,4 @@ class ApplicationPartDelete(ApplicationBase):
             for notification_item in hook_notification_item_list:  # Will be empty if hook not enabled
                 self._hook.notify(notification_item)
             headers = {"Content-Type": "text/xml; charset=%s" % self._encoding}
-            return client.OK, headers, self._xml_response(xml_answer), None
+            return client.OK, headers, self._xml_response(xml_answer, request_info), None

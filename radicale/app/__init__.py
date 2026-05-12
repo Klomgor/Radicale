@@ -130,6 +130,14 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
         logger.debug("log request  content on debug: %s", self._request_content_on_debug)
         logger.debug("log response header  on debug: %s", self._response_header_on_debug)
         logger.debug("log response content on debug: %s", self._response_content_on_debug)
+        self._request_header_on_notice_condition = configuration.get("logging", "request_header_on_notice_condition")
+        self._request_content_on_notice_condition = configuration.get("logging", "request_content_on_notice_condition")
+        self._response_header_on_notice_condition = configuration.get("logging", "response_header_on_notice_condition")
+        self._response_content_on_notice_condition = configuration.get("logging", "response_content_on_notice_condition")
+        logger.notice("log request  header  on notice condition: %s", self._request_header_on_notice_condition)
+        logger.notice("log request  content on notice condition: %s", self._request_content_on_notice_condition)
+        logger.notice("log response header  on notice condition: %s", self._response_header_on_notice_condition)
+        logger.notice("log response content on notice condition: %s", self._response_content_on_notice_condition)
         self._limit_content = configuration.get("logging", "limit_content")
         logger.debug("log limit for content: %d", self._limit_content)
         self._auth_delay = configuration.get("auth", "delay")
@@ -274,7 +282,7 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
         """Manage a request."""
         def response(status: int, headers: types.WSGIResponseHeaders,
                      answer: Union[None, str, bytes],
-                     xml_request: Union[None, str] = None) -> _IntermediateResponse:
+                     xml_request: Union[None, str] = None, request_info: dict = {}) -> _IntermediateResponse:
             """Helper to create response from internal types.WSGIResponse"""
             headers = dict(headers)
             content_encoding = "plain"
@@ -286,8 +294,16 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
                         if logger.isEnabledFor(logging.DEBUG):
                             logger.debug("Response content (nonXML):\n%s", utils.textwrap_str(answer, self._limit_content))
                     else:
-                        if logger.isEnabledFor(logging.DEBUG):
-                            logger.debug("Response content: suppressed by config/option [logging] response_content_on_debug")
+                        if self._response_content_on_notice_condition != {}:
+                            if log.log_conditional(
+                                    "response-content",
+                                    condition=self._response_content_on_notice_condition,
+                                    value=request_info,
+                                    ):
+                                logger.notice("Response content (nonXML, log condition passed):\n%s", utils.textwrap_str(answer, self._limit_content))
+                        else:
+                            if logger.isEnabledFor(logging.DEBUG):
+                                logger.debug("Response content: suppressed by config/option [logging] response_content_on_debug")
                     headers["Content-Type"] += "; charset=%s" % self._encoding
                     answer = answer.encode(self._encoding)
                 accept_encoding = [
@@ -307,12 +323,22 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
             # Add extra headers set in configuration
             headers.update(self._extra_headers)
 
+            request_info["status"] = status
+
             if self._response_header_on_debug:
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug("Response header:\n%s", utils.textwrap_str(pprint.pformat(headers), self._limit_content))
             else:
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("Response header: suppressed by config/option [logging] response_header_on_debug")
+                if self._response_header_on_notice_condition != {}:
+                    if log.log_conditional(
+                            "response-header",
+                            condition=self._response_header_on_notice_condition,
+                            value=request_info,
+                            ):
+                        logger.notice("Response header (log condition passed):\n%s", utils.textwrap_str(pprint.pformat(headers), self._limit_content))
+                else:
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug("Response header: suppressed by config/option [logging] response_header_on_debug")
 
             # Start response
             # delay on error
@@ -428,8 +454,10 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
         if environ.get("HTTP_X_FORWARDED_HOST") or environ.get("HTTP_X_FORWARDED_PROTO") or environ.get("HTTP_X_FORWARDED_SERVER"):
             reverse_proxy = True
         remote_useragent = ""
+        remote_useragent_txt = ""
         if environ.get("HTTP_USER_AGENT"):
-            remote_useragent = " using %r" % environ["HTTP_USER_AGENT"]
+            remote_useragent = environ["HTTP_USER_AGENT"]
+            remote_useragent_txt = " using %r" % environ["HTTP_USER_AGENT"]
         depthinfo = ""
         if environ.get("HTTP_DEPTH"):
             depthinfo = " with depth %r" % environ["HTTP_DEPTH"]
@@ -439,12 +467,14 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
             https_info = ""
         logger.info("%s request for %r%s received from %s%s%s",
                     request_method, unsafe_path, depthinfo,
-                    remote_host, remote_useragent, https_info)
+                    remote_host, remote_useragent_txt, https_info)
         if self._request_header_on_debug:
             logger.debug("Request header:\n%s",
                          utils.textwrap_str(pprint.pformat(self._scrub_headers(environ)), self._limit_content))
         else:
-            logger.debug("Request header: suppressed by config/option [logging] request_header_on_debug")
+            if not self._request_header_on_notice_condition != {}:
+                # conditional request header logging is later
+                logger.debug("Request header: suppressed by config/option [logging] request_header_on_debug")
 
         # SCRIPT_NAME is already removed from PATH_INFO, according to the
         # WSGI specification.
@@ -527,6 +557,23 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
                 self._rights._user_groups = self._auth._ldap_groups
             except AttributeError:
                 pass
+
+        request_info: dict = {
+                              "method": request_method,
+                              "login": login, # not 'user' in this step
+                              "path": path,
+                              "useragent": remote_useragent,
+                              "host": remote_host,
+                              }
+
+        if not self._request_header_on_debug and self._request_header_on_notice_condition != {}:
+            if log.log_conditional(
+                    "request-header",
+                    condition=self._request_header_on_notice_condition,
+                    value=request_info,
+                    ):
+                logger.notice("Request header (log condition passed):\n%s", utils.textwrap_str(pprint.pformat(self._scrub_headers(environ)), self._limit_content))
+
         if user and login == user:
             logger.info("Successful login: %r (%s)", user, info)
         elif user:
@@ -611,7 +658,7 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
 
             try:
                 status, headers, answer, xml_request = function(
-                    environ, base_prefix, path, user, remote_host, remote_useragent)
+                    environ, base_prefix, path, user, request_info)
             except PermissionError as e:
                 logger.error("PermissionError: %s", e)
                 status, headers, answer, xml_request = httputils.INTERNAL_SERVER_ERROR
@@ -648,4 +695,4 @@ class Application(ApplicationPartDelete, ApplicationPartHead,
                 "WWW-Authenticate":
                 "Basic realm=\"%s\"" % self._auth_realm})
 
-        return response(status, headers, answer, xml_request)
+        return response(status, headers, answer, xml_request, request_info)

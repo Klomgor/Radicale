@@ -97,7 +97,7 @@ def xml_proppatch(base_prefix: str, path: str,
 class ApplicationPartProppatch(ApplicationBase):
 
     def do_PROPPATCH(self, environ: types.WSGIEnviron, base_prefix: str,
-                     path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+                     path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage PROPPATCH request."""
         actor = user
         permissions_filter = None
@@ -155,7 +155,8 @@ class ApplicationPartProppatch(ApplicationBase):
                         logger.info("PROPPATCH request on shared %r: write-permissions, overlay not enforced, but enforced by permission 'E'", path_orig)
                         share_overlay = True
         try:
-            xml_content = self._read_xml_request_body(environ)
+            xml_content = self._read_xml_request_body(environ, request_info)
+
         except RuntimeError as e:
             logger.warning(
                 "Bad PROPPATCH request on %r: %s", path, e, exc_info=True)
@@ -193,7 +194,8 @@ class ApplicationPartProppatch(ApplicationBase):
                     logger.warning(
                         "Bad PROPPATCH request on %r: %s", path, e, exc_info=True)
                     return httputils.BAD_REQUEST
-            return client.MULTI_STATUS, headers, self._xml_response(xml_answer), xmlutils.pretty_xml(xml_content)
+            request_info["status"] = client.MULTI_STATUS
+            return client.MULTI_STATUS, headers, self._xml_response(xml_answer, request_info), xmlutils.pretty_xml(xml_content)
 
         with self._storage.acquire_lock("w", user, path=path, request="PROPPATCH"):
             item = next(iter(self._storage.discover(path)), None)
@@ -242,4 +244,5 @@ class ApplicationPartProppatch(ApplicationBase):
                     logger.warning(
                         "Bad PROPPATCH request on %r: %s", path, e, exc_info=True)
                     return httputils.BAD_REQUEST
-            return client.MULTI_STATUS, headers, self._xml_response(xml_answer), xmlutils.pretty_xml(xml_content)
+            request_info["status"] = client.MULTI_STATUS
+            return client.MULTI_STATUS, headers, self._xml_response(xml_answer, request_info), xmlutils.pretty_xml(xml_content)

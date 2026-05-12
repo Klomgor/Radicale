@@ -32,12 +32,12 @@ from radicale.log import logger
 class ApplicationPartMkcalendar(ApplicationBase):
 
     def do_MKCALENDAR(self, environ: types.WSGIEnviron, base_prefix: str,
-                      path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+                      path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage MKCALENDAR request."""
         if "w" not in self._rights.authorization(user, path):
             return httputils.NOT_ALLOWED
         try:
-            xml_content = self._read_xml_request_body(environ)
+            xml_content = self._read_xml_request_body(environ, request_info)
         except RuntimeError as e:
             logger.warning(
                 "Bad MKCALENDAR request on %r: %s", path, e, exc_info=True)
@@ -67,7 +67,7 @@ class ApplicationPartMkcalendar(ApplicationBase):
             item = next(iter(self._storage.discover(path)), None)
             if item:
                 return self._webdav_error_response(
-                    client.CONFLICT, "D:resource-must-be-null")
+                    client.CONFLICT, "D:resource-must-be-null", request_info)
             parent_path = pathutils.parent_path(path)
             parent_item = next(iter(self._storage.discover(parent_path)), None)
             if not parent_item:

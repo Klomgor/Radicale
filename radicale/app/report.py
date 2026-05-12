@@ -149,7 +149,7 @@ def free_busy_report(base_prefix: str, path: str, xml_request: Optional[ET.Eleme
 def xml_report(base_prefix: str, path: str, xml_request: Optional[ET.Element],
                collection: storage.BaseCollection, encoding: str,
                unlock_storage_fn: Callable[[], None],
-               max_occurrence: int = 0, user: str = "", remote_addr: str = "", remote_useragent: str = "",
+               max_occurrence: int = 0, user: str = "", request_info: dict = {},
                share: Union[dict, None] = None) -> Tuple[int, ET.Element]:
     """Read and answer REPORT requests that return XML.
 
@@ -216,8 +216,11 @@ def xml_report(base_prefix: str, path: str, xml_request: Optional[ET.Element],
             sync_token, names = collection.sync(old_sync_token)
         except ValueError as e:
             # Invalid sync token
+            remote_useragent_txt = ""
+            if request_info["useragent"] != "":
+                remote_useragent_txt = " using %r" % request_info["useragent"]
             logger.warning("Client provided invalid sync token for path %r (user %r from %s%s): %s",
-                           path, user, remote_addr, remote_useragent, e, exc_info=True)
+                           path, user, request_info["host"], remote_useragent_txt, e, exc_info=True)
             # client.CONFLICT doesn't work with some clients (e.g. InfCloud)
             return (client.FORBIDDEN,
                     xmlutils.webdav_error("D:valid-sync-token"))
@@ -851,7 +854,7 @@ def test_filter(collection_tag: str, item: radicale_item.Item,
 class ApplicationPartReport(ApplicationBase):
 
     def do_REPORT(self, environ: types.WSGIEnviron, base_prefix: str,
-                  path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+                  path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage REPORT request."""
         permissions_filter = None
         share = None
@@ -867,7 +870,7 @@ class ApplicationPartReport(ApplicationBase):
         if not access.check("r"):
             return httputils.NOT_ALLOWED
         try:
-            xml_content = self._read_xml_request_body(environ)
+            xml_content = self._read_xml_request_body(environ, request_info)
         except RuntimeError as e:
             logger.warning("Bad REPORT request on %r: %s", path, e,
                            exc_info=True)
@@ -905,10 +908,11 @@ class ApplicationPartReport(ApplicationBase):
                 try:
                     status, xml_answer = xml_report(
                         base_prefix, path, xml_content, collection, self._encoding,
-                        lock_stack.close, max_occurrence, user, remote_host, remote_useragent, share=share)
+                        lock_stack.close, max_occurrence, user, request_info, share=share)
                 except ValueError as e:
                     logger.warning(
                         "Bad REPORT request on %r: %s", path, e, exc_info=True)
                     return httputils.BAD_REQUEST
                 headers = {"Content-Type": "text/xml; charset=%s" % self._encoding}
-                return status, headers, self._xml_response(xml_answer), xmlutils.pretty_xml(xml_content)
+                request_info["status"] = status
+                return status, headers, self._xml_response(xml_answer, request_info), xmlutils.pretty_xml(xml_content)

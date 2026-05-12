@@ -32,7 +32,7 @@ import time
 from http import client
 from typing import List, Mapping, Union, cast
 
-from radicale import config, pathutils, types, utils
+from radicale import config, log, pathutils, types, utils
 from radicale.log import logger
 
 if sys.version_info < (3, 9):
@@ -151,16 +151,29 @@ def read_raw_request_body(configuration: "config.Configuration",
 
 
 def read_request_body(configuration: "config.Configuration",
-                      environ: types.WSGIEnviron) -> str:
+                      environ: types.WSGIEnviron, request_info: dict) -> str:
     content = decode_request(configuration, environ,
                              read_raw_request_body(configuration, environ))
-    if logger.isEnabledFor(logging.DEBUG):
-        if configuration.get("logging", "request_content_on_debug"):
-            _limit_content = configuration.get("logging", "limit_content")
+    _limit_content = configuration.get("logging", "limit_content")
+    if configuration.get("logging", "request_content_on_debug"):
+        if logger.isEnabledFor(logging.DEBUG):
             logger.debug("Request content (sha256sum): %s", utils.sha256_str(content))
             logger.debug("Request content:\n%s", utils.textwrap_str(content, _limit_content))
+    else:
+        _request_content_on_notice_condition = configuration.get("logging", "request_content_on_notice_condition")
+        if _request_content_on_notice_condition != {}:
+            if log.log_conditional(
+                    "request-content",
+                    condition=_request_content_on_notice_condition,
+                    value=request_info,
+                    ):
+                logger.notice("Request content (log condition passed):\n%s", utils.textwrap_str(content, _limit_content))
+            else:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Request content (log condition skipped): suppressed")
         else:
-            logger.debug("Request content: suppressed by config/option [logging] request_content_on_debug")
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Request content: suppressed by config/option [logging] request_content_on_debug")
     return content
 
 
