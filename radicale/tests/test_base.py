@@ -2458,3 +2458,233 @@ permissions: RrWw""")
         self.mkcalendar("/calendar.ics/")
         event = get_file_content("event_timezone_seconds.ics")
         self.put("/calendar.ics/event.ics", event)
+
+    def test_logging_conditional_basic(self, caplog) -> None:
+        caplog.set_level(logging.INFO)
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "request_header_on_notice_condition": '{"method": {"match": "equal", "value": "GET"}, "login": {"match": "equal", "value": "owner"}}',
+                                    "request_content_on_notice_condition": '{"method": {"match": "equal", "value": "PUT"}, "useragent": {"match": "startswith", "value": "caldavsync"}}',
+                                    "response_header_on_notice_condition": '{"method": {"match": "equal", "value": "PUT"}, "status": {"match": ">=", "value": "201"}, "host": {"match": "included", "value": "127.0.0.0/8"}}',
+                                    "response_content_on_notice_condition": '{"method": {"match": "equal", "value": "GET"}, "path": {"match": "endswith", "value": ".ics"}}',
+                                    }})
+        self.mkcalendar("/test/")
+        event = get_file_content("event1.ics")
+        path = "/test/event1.ics"
+        path2 = "/test/event2.ics"
+
+        logging.info("\n*** check log condition: Response header (found)")
+        caplog.clear()
+        self.put(path, event, remote_host='127.0.0.1')
+        assert "Response header (log condition passed)" in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Response header (not found)")
+        caplog.clear()
+        self.put(path, event, remote_host='192.0.2.1', check=204)
+        assert "Response header (log condition passed)" not in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Response content (found)")
+        caplog.clear()
+        self.get(path)
+        assert "Response content (nonXML, log condition passed)" in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Response content (not found)")
+        caplog.clear()
+        self.get(path2, check=404)
+        assert "Response content (log condition passed)" not in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Request header (found)")
+        caplog.clear()
+        self.get(path2, check=401, login="owner:ownerpw")
+        assert "Request header (log condition passed)" in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Request content (found)")
+        caplog.clear()
+        self.put(path, event, remote_useragent='caldavsync', check=204)
+        assert "Request content (log condition passed)" in "\n".join(caplog.messages)
+
+    def test_logging_conditional_ip_included(self, caplog) -> None:
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "response_header_on_notice_condition": '{"host": {"match": "included", "value": "127.0.0.0/8"}}',
+                                    }})
+
+        self.mkcalendar("/test/")
+        event = get_file_content("event1.ics")
+        path = "/test/event1.ics"
+
+        logging.info("\n*** check log condition: Response header (not found)")
+        caplog.clear()
+        self.put(path, event, remote_host='192.0.2.1')
+        assert "Response header (log condition passed)" not in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Response header (found)")
+        caplog.clear()
+        self.put(path, event, remote_host='127.0.0.1', check=204)
+        assert "Response header (log condition passed)" in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Response header (not found, no remote_host)")
+        caplog.clear()
+        self.put(path, event, check=204)
+        assert "Response header (log condition passed)" not in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Response header (IPv6, not found)")
+        caplog.clear()
+        self.put(path, event, check=204, remote_host='2001:db8::1')
+        assert "Response header (log condition passed)" not in "\n".join(caplog.messages)
+
+    def test_logging_conditional_report(self, caplog) -> None:
+        caplog.set_level(logging.INFO)
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "response_content_on_notice_condition": '{"status": {"match": "equal", "value": "207"}, "method": {"match": "equal", "value": "REPORT"}}',
+                                    }})
+        self.mkcalendar("/test/")
+
+        logging.info("\n*** check log condition: Response content (found)")
+        caplog.clear()
+        _, responses = self.report("/test/", """\
+<?xml version="1.0" encoding="utf-8" ?>
+<C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav">
+    <D:prop xmlns:D="DAV:">
+        <D:getetag/>
+    </D:prop>
+</C:calendar-query>""")
+        assert "Response content (XML, log condition passed)" in "\n".join(caplog.messages)
+
+    def test_logging_conditional_propfind(self, caplog) -> None:
+        caplog.set_level(logging.INFO)
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "response_content_on_notice_condition": '{"status": {"match": "equal", "value": "207"}, "method": {"match": "equal", "value": "PROPFIND"}}',
+                                    }})
+        self.mkcalendar("/test/")
+
+        logging.info("\n*** check log condition: Response content (found)")
+        caplog.clear()
+        _, responses = self.propfind("/test/")
+        assert "Response content (XML, log condition passed)" in "\n".join(caplog.messages)
+
+    def test_logging_conditional_proppatch(self, caplog) -> None:
+        caplog.set_level(logging.INFO)
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "response_content_on_notice_condition": '{"status": {"match": "equal", "value": "207"}, "method": {"match": "equal", "value": "PROPPATCH"}}',
+                                    }})
+        self.mkcalendar("/test/")
+        proppatch = get_file_content("proppatch_set_calendar_color.xml")
+
+        logging.info("\n*** check log condition: Response content (found)")
+        caplog.clear()
+        _, responses = self.proppatch("/test/", proppatch)
+        assert "Response content (XML, log condition passed)" in "\n".join(caplog.messages)
+
+    def test_logging_conditional_mkcalendar(self, caplog) -> None:
+        caplog.set_level(logging.INFO)
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "request_header_on_notice_condition": '{"method": {"match": "equal", "value": "MKCALENDAR"}}',
+                                    }})
+
+        logging.info("\n*** check log condition: Request content (found)")
+        caplog.clear()
+        self.mkcalendar("/test/")
+        assert "Request header (log condition passed)" in "\n".join(caplog.messages)
+
+    def test_logging_conditional_mkcol(self, caplog) -> None:
+        caplog.set_level(logging.INFO)
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "True",
+                                    "request_content_on_notice_condition": '{"method": {"match": "equal", "value": "MKCOL"}}',
+                                    }})
+
+        logging.info("\n*** check log condition: Request content (found)")
+        caplog.clear()
+        self.create_addressbook("/test/")
+
+    def test_logging_conditional_regex_basic(self, caplog) -> None:
+        caplog.set_level(logging.INFO)
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "response_header_on_notice_condition": '{"method": {"match": "equal", "value": "PUT"}, "path": {"match": "re", "value": "ev?nt[01]"}}',
+                                    }})
+        self.mkcalendar("/test/")
+        event = get_file_content("event1.ics")
+        event2 = get_file_content("event2.ics")
+        path = "/test/event1.ics"
+        path2 = "/test/event2.ics"
+
+        logging.info("\n*** check log condition: Response header (found/re)")
+        caplog.clear()
+        self.put(path, event, remote_host='127.0.0.1')
+        assert "Response header (log condition passed)" in "\n".join(caplog.messages)
+
+        logging.info("\n*** check log condition: Response header (found/re)")
+        caplog.clear()
+        self.put(path2, event2, remote_host='127.0.0.1')
+        assert "Response header (log condition passed)" not in "\n".join(caplog.messages)
+
+    def test_logging_conditional_problems(self, caplog) -> None:
+        logging.info("\n*** check log condition config: re ok")
+        self.configure({"logging": {"request_header_on_debug": "False",
+                                    "request_content_on_debug": "False",
+                                    "response_header_on_debug": "False",
+                                    "response_content_on_debug": "False",
+                                    "request_header_on_notice_condition": '{"path": {"match": "re", "value": "ev?.*nt[01]"}}',
+                                    }})
+        self.mkcalendar("/test1/")
+
+        logging.info("\n*** check log condition config: re broken")
+        try:
+            self.configure({"logging": {"request_header_on_debug": "False",
+                                        "request_content_on_debug": "False",
+                                        "response_header_on_debug": "False",
+                                        "response_content_on_debug": "False",
+                                        "request_header_on_notice_condition": '{"path": {"match": "re", "value": "*.ics"}}',
+                                        }})
+        except RuntimeError:
+            pass
+        else:
+            raise
+
+        logging.info("\n*** check log condition config: status not supported <100")
+        try:
+            self.configure({"logging": {"request_header_on_debug": "False",
+                                        "request_content_on_debug": "False",
+                                        "response_header_on_debug": "False",
+                                        "response_content_on_debug": "False",
+                                        "response_header_on_notice_condition": '{"status": {"match": "<=", "value": "99"}}',
+                                        }})
+        except RuntimeError:
+            pass
+        else:
+            raise
+
+        logging.info("\n*** check log condition config: status not supported >599")
+        try:
+            self.configure({"logging": {"request_header_on_debug": "False",
+                                        "request_content_on_debug": "False",
+                                        "response_header_on_debug": "False",
+                                        "response_content_on_debug": "False",
+                                        "response_header_on_notice_condition": '{"status": {"match": "<=", "value": "600"}}',
+                                        }})
+        except RuntimeError:
+            pass
+        else:
+            raise
