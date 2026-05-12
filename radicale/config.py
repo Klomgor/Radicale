@@ -27,9 +27,11 @@ Use ``load()`` to obtain an instance of ``Configuration`` for use with
 """
 
 import contextlib
+import ipaddress
 import json
 import math
 import os
+import re
 import string
 import sys
 from collections import OrderedDict
@@ -164,6 +166,66 @@ def json_str(value: Any) -> dict:
     for (name_coll, props) in ret.items():
         checked_props = check_and_sanitize_props(props)
         ret[name_coll] = checked_props
+    return ret
+
+
+def json_str_condition(value: Any) -> dict:
+    if not value:
+        return {}
+    ret = json.loads(value)
+    for (token, props) in ret.items():
+        checked_props = check_and_sanitize_props(props)
+        # check token
+        if token not in log.LOG_CONDITION_TOKEN:
+            raise ValueError("unsupported log condition token: %r" % token)
+        # check condition entry
+        for cond_name in checked_props:
+            if cond_name not in log.LOG_CONDITION_CONDITION:
+                raise ValueError("unsupported log condition: %r" % cond_name)
+            if cond_name == "match":
+                if log.LOG_CONDITION_TOKEN[token] == "str":
+                    if checked_props[cond_name] not in log.LOG_CONDITION_MATCH_STR:
+                        raise ValueError("unsupported log match: %r" % checked_props[cond_name])
+                elif log.LOG_CONDITION_TOKEN[token] == "int":
+                    if checked_props[cond_name] not in log.LOG_CONDITION_MATCH_INT:
+                        raise ValueError("unsupported log match: %r" % checked_props[cond_name])
+                elif log.LOG_CONDITION_TOKEN[token] == "ipaddress":
+                    if checked_props[cond_name] not in log.LOG_CONDITION_MATCH_IPADDRESS + log.LOG_CONDITION_MATCH_IPNETWORK:
+                        raise ValueError("unsupported log match: %r" % checked_props[cond_name])
+                else:
+                    raise RuntimeError("unsupported log match (fix code): %r" % cond_name)
+            if cond_name == "value":
+                if log.LOG_CONDITION_TOKEN[token] == "str":
+                    if checked_props["match"] == "re":
+                        try:
+                            if re.match(checked_props[cond_name], "Test"):
+                                pass
+                            else:
+                                pass
+                        except Exception as e:
+                            raise ValueError("unsupported log match value(re) for condition %r: %r (%s)" % (checked_props["match"], checked_props[cond_name], e))
+                    pass
+                elif log.LOG_CONDITION_TOKEN[token] == "int":
+                    if str(int(checked_props[cond_name])) != checked_props[cond_name]:
+                        raise ValueError("unsupported log match value(int): %r" % checked_props[cond_name])
+                    if token == "status":
+                        # only 100-599 are valid
+                        if int(checked_props[cond_name]) < 100 or int(checked_props[cond_name]) > 599:
+                            raise ValueError("unsupported log match value(int) not in range 100-599: %r" % checked_props[cond_name])
+                elif log.LOG_CONDITION_TOKEN[token] == "ipaddress":
+                    try:
+                        if checked_props["match"] in log.LOG_CONDITION_MATCH_IPADDRESS:
+                            ip = ipaddress.ip_address(checked_props[cond_name])  # noqa: F841
+                        elif checked_props["match"] in log.LOG_CONDITION_MATCH_IPNETWORK:
+                            ip_net = ipaddress.ip_network(checked_props[cond_name], strict=True)  # noqa: F841
+                    except Exception as e:
+                        raise ValueError("unsupported log match value(ipaddress) for condition %r: %r (%s)" % (checked_props["match"], checked_props[cond_name], e))
+        # check condition entries are complete
+        for cond_name in log.LOG_CONDITION_CONDITION:
+            if cond_name not in checked_props:
+                raise ValueError("incomplete condition, misses: %r" % cond_name)
+        # all checks passed
+        ret[token] = checked_props
     return ret
 
 
@@ -667,6 +729,22 @@ This is an automated message. Please do not reply.""",
             "value": "False",
             "help": "log response content on level=debug",
             "type": bool}),
+        ("request_header_on_notice_condition", {
+            "value": "{}",
+            "help": "log request header on level=notice with condition",
+            "type": json_str_condition}),
+        ("request_content_on_notice_condition", {
+            "value": "{}",
+            "help": "log request content on level=notice with condition",
+            "type": json_str_condition}),
+        ("response_header_on_notice_condition", {
+            "value": "{}",
+            "help": "log response header on level=notice with condition",
+            "type": json_str_condition}),
+        ("response_content_on_notice_condition", {
+            "value": "{}",
+            "help": "log response content on level=notice with condition",
+            "type": json_str_condition}),
         ("rights_rule_doesnt_match_on_debug", {
             "value": "False",
             "help": "log rights rules which doesn't match on level=debug",
