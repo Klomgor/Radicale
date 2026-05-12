@@ -41,8 +41,10 @@ PATH_PATTERN_STRICT_RE: str = "^[" + PATH_PATTERN_STRICT + "]+$"
 USER_BLACKLIST_MINIMAL: list = [":", "'", '"', '*', '?']
 PATH_BLACKLIST_MINIMAL: list = USER_BLACKLIST_MINIMAL
 
-USER_WHITELIST_UNICODE: list = ["-", ".", "@", "_"]  # from USER_PATTERN_STRICT
-PATH_WHITELIST_UNICODE: list = ["-", ".", "@", "_", "/", "~"]  # from PATH_PATTERN_STRICT
+BASE_WHITELIST_UNICODE: list = ["-", ".", "@", "_", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]
+
+USER_WHITELIST_UNICODE: list = BASE_WHITELIST_UNICODE   # from USER_PATTERN_STRICT
+PATH_WHITELIST_UNICODE: list = BASE_WHITELIST_UNICODE + ["/", "~"]  # from PATH_PATTERN_STRICT
 
 
 def _check_format(self: storage.BaseStorage,
