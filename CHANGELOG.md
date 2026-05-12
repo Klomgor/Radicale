@@ -6,6 +6,7 @@
 * Fix: sharing: PROPFIND response on single item with bday conversion
 * Fix: sharing: PROPFIND response related to C:supported-calendar-component-set
 * Feature: conditional log of request/response header/content by new options *_on_notice_condition
+* Fix: user/path validation related to 'unicode-letter'
 
 ## 3.7.2
 * Fix: broken storage/mtime granularity detection on vfat
