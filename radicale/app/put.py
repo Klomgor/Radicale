@@ -179,7 +179,7 @@ def prepare(vobject_items: List[vobject.base.Component], path: str,
 class ApplicationPartPut(ApplicationBase):
 
     def do_PUT(self, environ: types.WSGIEnviron, base_prefix: str,
-               path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+               path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage PUT request."""
         actor = user
         permissions_filter = None
@@ -196,7 +196,7 @@ class ApplicationPartPut(ApplicationBase):
         if not access.check("w"):
             return httputils.NOT_ALLOWED
         try:
-            content = httputils.read_request_body(self.configuration, environ)
+            content = httputils.read_request_body(self.configuration, environ, request_info)
         except RuntimeError as e:
             logger.warning("Bad PUT request on %r (read_request_body): %s", path, e, exc_info=True)
             return httputils.BAD_REQUEST
@@ -344,9 +344,10 @@ class ApplicationPartPut(ApplicationBase):
                 prepared_item, = prepared_items
                 if (item and item.uid != prepared_item.uid or
                         not item and parent_item.has_uid(prepared_item.uid)):
+                    request_info["status"] = client.CONFLICT
                     return self._webdav_error_response(
                         client.CONFLICT, "%s:no-uid-conflict" % (
-                            "C" if tag == "VCALENDAR" else "CR"))
+                            "C" if tag == "VCALENDAR" else "CR"), request_info)
 
                 href = posixpath.basename(pathutils.strip_path(path))
                 try:

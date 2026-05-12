@@ -34,6 +34,6 @@ FALLBACK_MIMETYPE = httputils.FALLBACK_MIMETYPE  # deprecated
 class Web(web.BaseWeb):
 
     def get(self, environ: types.WSGIEnviron, base_prefix: str, path: str,
-            user: str) -> types.WSGIResponse:
+            user: str, request_info: dict) -> types.WSGIResponse:
         return httputils.serve_resource("radicale.web", "internal_data",
                                         base_prefix, path)

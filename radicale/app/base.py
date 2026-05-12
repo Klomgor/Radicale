@@ -23,7 +23,7 @@ import unicodedata
 import xml.etree.ElementTree as ET
 from typing import Optional, Union
 
-from radicale import (auth, config, hook, httputils, pathutils, rights,
+from radicale import (auth, config, hook, httputils, log, pathutils, rights,
                       sharing, storage, types, utils, web, xmlutils)
 from radicale.log import logger
 from radicale.rights import intersect
@@ -137,12 +137,16 @@ class ApplicationBase:
         self._log_bad_put_request_content = configuration.get("logging", "bad_put_request_content")
         self._response_content_on_debug = configuration.get("logging", "response_content_on_debug")
         self._request_content_on_debug = configuration.get("logging", "request_content_on_debug")
+        self._response_content_on_notice_condition = configuration.get("logging", "response_content_on_notice_condition")
+        self._request_content_on_notice_condition = configuration.get("logging", "request_content_on_notice_condition")
         self._limit_content = configuration.get("logging", "limit_content")
         self._validate_user_value = configuration.get("server", "validate_user_value")
         self._validate_path_value = configuration.get("server", "validate_path_value")
         self._hook = hook.load(configuration)
 
-    def _read_xml_request_body(self, environ: types.WSGIEnviron
+    def _read_xml_request_body(self,
+                               environ: types.WSGIEnviron,
+                               request_info: dict,
                                ) -> Optional[ET.Element]:
         content = httputils.decode_request(
             self.configuration, environ,
@@ -154,19 +158,41 @@ class ApplicationBase:
         except ET.ParseError as e:
             logger.debug("Request content (Invalid XML):\n%s", content)
             raise RuntimeError("Failed to parse XML: %s" % e) from e
-        if logger.isEnabledFor(logging.DEBUG):
-            if self._request_content_on_debug:
-                logger.debug("Request content (XML):\n%s",
-                             utils.textwrap_str(xmlutils.pretty_xml(xml_content)))
+        if self._request_content_on_debug:
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Request content (XML):\n%s", utils.textwrap_str(xmlutils.pretty_xml(xml_content)))
+        else:
+            if self._request_content_on_notice_condition != {}:
+                if log.log_conditional(
+                        "request-content",
+                        condition=self._request_content_on_notice_condition,
+                        value=request_info,
+                        ):
+                    logger.notice("Request content (XML, log condition passed):\n%s", utils.textwrap_str(xmlutils.pretty_xml(xml_content)))
+                else:
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug("Request content (XML, log condition skipped): suppressed")
             else:
-                logger.debug("Request content (XML): suppressed by config/option [logging] request_content_on_debug")
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Request content (XML): suppressed by config/option [logging] request_content_on_debug")
         return xml_content
 
-    def _xml_response(self, xml_content: ET.Element) -> bytes:
-        if logger.isEnabledFor(logging.DEBUG):
-            if self._response_content_on_debug:
+    def _xml_response(self, xml_content: ET.Element, request_info: dict) -> bytes:
+        if self._response_content_on_debug:
+            if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("Response content (XML):\n%s",
                              utils.textwrap_str(xmlutils.pretty_xml(xml_content), self._limit_content))
+        else:
+            if self._response_content_on_notice_condition != {}:
+                if log.log_conditional(
+                        "response-content",
+                        condition=self._response_content_on_notice_condition,
+                        value=request_info,
+                        ):
+                    logger.notice("Response content (XML, log condition passed):\n%s", utils.textwrap_str(xmlutils.pretty_xml(xml_content)))
+                else:
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug("Response content (XML, log condition skipped): suppressed")
             else:
                 logger.debug("Response content (XML): suppressed by config/option [logging] response_content_on_debug")
         f = io.BytesIO()
@@ -174,11 +200,11 @@ class ApplicationBase:
                                           xml_declaration=True)
         return f.getvalue()
 
-    def _webdav_error_response(self, status: int, human_tag: str
+    def _webdav_error_response(self, status: int, human_tag: str, request_info: dict
                                ) -> types.WSGIResponse:
         """Generate XML error response."""
         headers = {"Content-Type": "text/xml; charset=%s" % self._encoding}
-        content = self._xml_response(xmlutils.webdav_error(human_tag))
+        content = self._xml_response(xmlutils.webdav_error(human_tag), request_info)
         return status, headers, content, None
 
 

@@ -32,13 +32,13 @@ from radicale.log import logger
 class ApplicationPartMkcol(ApplicationBase):
 
     def do_MKCOL(self, environ: types.WSGIEnviron, base_prefix: str,
-                 path: str, user: str, remote_host: str, remote_useragent: str) -> types.WSGIResponse:
+                 path: str, user: str, request_info: dict) -> types.WSGIResponse:
         """Manage MKCOL request."""
         permissions = self._rights.authorization(user, path)
         if not rights.intersect(permissions, "Ww"):
             return httputils.NOT_ALLOWED
         try:
-            xml_content = self._read_xml_request_body(environ)
+            xml_content = self._read_xml_request_body(environ, request_info)
         except RuntimeError as e:
             logger.warning(
                 "Bad MKCOL request on %r: %s", path, e, exc_info=True)

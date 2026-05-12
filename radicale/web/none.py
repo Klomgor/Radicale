@@ -28,7 +28,7 @@ from radicale import httputils, pathutils, types, web
 class Web(web.BaseWeb):
 
     def get(self, environ: types.WSGIEnviron, base_prefix: str, path: str,
-            user: str) -> types.WSGIResponse:
+            user: str, request_info: dict) -> types.WSGIResponse:
         assert path == "/.web" or path.startswith("/.web/")
         assert pathutils.sanitize_path(path) == path
         if path != "/.web":
