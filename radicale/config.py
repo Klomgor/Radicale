@@ -934,8 +934,7 @@ class Configuration:
                 except Exception as e:
                     raise RuntimeError(
                         "Invalid %s value for option %r in section %r in %s: "
-                        "%r" % (type_.__name__, option, section, source,
-                                raw_value)) from e
+                        "%r (%s)" % (type_.__name__, option, section, source, raw_value, e)) from e
         self._configs.append((config, source, bool(privileged)))
         for section in new_values:
             self._values[section] = self._values.get(section, {})
