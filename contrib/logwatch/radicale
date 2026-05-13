@@ -153,7 +153,7 @@ sub ConvertLogin($) {
 
 while (defined($ThisLine = <STDIN>)) {
    # count loglevel
-   if ( $ThisLine =~ /\[(DEBUG|INFO|WARNING|ERROR|CRITICAL)\] /o ) {
+   if ( $ThisLine =~ /\[(TRACE|DEBUG|INFO|NOTICE|WARNING|ERROR|CRITICAL|ALERT)\] /o ) {
       $Loglevel{$1}++
    }       
   
@@ -241,8 +241,8 @@ while (defined($ThisLine = <STDIN>)) {
          $OtherEvents{$info}++;
       };
    }
-   elsif ( $ThisLine =~ /\[(DEBUG|INFO)\] /o ) {
-      # skip if DEBUG+INFO
+   elsif ( $ThisLine =~ /\[(TRACE|DEBUG|INFO)\] /o ) {
+      # skip if TRACE+DEBUG+INFO
    }
    else {
       # Report any unmatched entries...
