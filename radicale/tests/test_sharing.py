@@ -3475,12 +3475,27 @@ permissions: RrWw""")
             _, headers, answer = self._sharing_api_json("map", "enable", check=200, login="user1:user1pw", json_dict=json_dict)
 
             # check PROPFIND/privileges item as user
-            logging.info("\n*** PROPFIND/privileges item as user")
+            logging.info("\n*** PROPFIND/privileges item as user (rw, no P)")
             privileges_list = self._propfind_privileges(path_user1_rw, login="user1:user1pw")
             assert "D:read" in privileges_list
             assert "D:write-content" in privileges_list
             assert "D:write-properties" not in privileges_list
             assert "D:write" not in privileges_list
+            assert "D:all" not in privileges_list
+
+            logging.info("\n*** create map user1/owner1 rwP-> 200")
+            json_dict = {}
+            json_dict['PathMapped'] = path_owner1_rw
+            json_dict['PathOrToken'] = path_user1_rw
+            json_dict['Permissions'] = "rwP"
+            _, headers, answer = self._sharing_api_json("map", "update", check=200, login="owner1:owner1pw", json_dict=json_dict)
+
+            logging.info("\n*** PROPFIND/privileges item as user (rwP)")
+            privileges_list = self._propfind_privileges(path_user1_rw, login="user1:user1pw")
+            assert "D:read" in privileges_list
+            assert "D:write-content" in privileges_list
+            assert "D:write-properties" in privileges_list
+            assert "D:write" in privileges_list
             assert "D:all" not in privileges_list
 
             logging.info("\n*** create map user1/owner1 with adjusted default permissions -> 200")
