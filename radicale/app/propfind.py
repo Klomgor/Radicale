@@ -316,10 +316,12 @@ def xml_propfind_response(
             privileges = ["D:read"]
             if share:
                 logger.trace("PROPFIND/xml_propfind_response/current-user-privilege-set: raw_permissions=%r share[Permissions]=%r permit_properties_overlay=%s", raw_permissions, share['Permissions'], self._sharing.permit_properties_overlay)
+                permit_write_content = False
                 if write:
                     if "w" in share['Permissions']:
                         if not share_bday_automap:
                             privileges.append("D:write-content")
+                            permit_write_content = True
                 # priority share->rights->global
                 if ("P" in share['Permissions'] or
                     ("P" in raw_permissions and "p" not in share['Permissions']) or
@@ -330,6 +332,9 @@ def xml_propfind_response(
                             (not self._sharing.permit_properties_overlay and "P" not in raw_permissions and "P" not in share['Permissions'])):
                     logger.trace("PROPFIND/xml_propfind_response/current-user-privilege-set: add D:write-properties")
                     privileges.append("D:write-properties")
+                    # "write-content" + "write-properties" = "write" (rfc3744-3.2)
+                    if permit_write_content:
+                        privileges.append("D:write")
             elif write:
                 privileges.append("D:all")
                 privileges.append("D:write")
