@@ -2236,15 +2236,18 @@ class TestSharingApiSanity(BaseTest):
 <propfind xmlns="DAV:">
     <prop>
         <current-user-principal />
+        <owner />
     </prop>
 </propfind>""", login="user:userpw", check=207)
             logging.info("response: %r", responses)
             response = responses[path_shared]
-            assert not isinstance(response, int) and len(response) == 1
+            assert not isinstance(response, int) and len(response) == 2
             status, prop = response["D:current-user-principal"]
             assert status == 200 and len(prop) == 1
             element = prop.find(xmlutils.make_clark("D:href"))
             assert element is not None and element.text == "/user/"
+            status, prop = response["D:owner"]
+            assert status == 200 and len(prop) == 0
 
     def test_sharing_api_map_proppatch_acl(self) -> None:
         """share-by-map API usage tests related to report."""
