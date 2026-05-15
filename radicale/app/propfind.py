@@ -395,7 +395,8 @@ def xml_propfind_response(
                 is404 = True
         elif tag == xmlutils.make_clark("D:owner"):
             # return empty elment, if no owner available (rfc3744-5.1)
-            if collection.owner:
+            # return empty element in case of a mapped share / clients try PROPFIND on this not accessable href
+            if collection.owner and not share:
                 child_element = ET.Element(xmlutils.make_clark("D:href"))
                 child_element.text = xmlutils.make_href(
                     base_prefix, "/%s/" % collection.owner)
