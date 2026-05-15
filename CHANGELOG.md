@@ -1,5 +1,7 @@
 # Changelog
 
+## 3.7.4.dev
+
 ## 3.7.3
 * Extension: expose RADICALE:version for authenticated users via PROPFIND
 * Fix: sharing: GET request on single item with bday conversion
