@@ -159,7 +159,7 @@ def xml_propfind_response(
         if uri.startswith(share['PathMapped']):
             uri = str(share['PathOrToken']) + uri.removeprefix(share['PathMapped'])
         if share_bday_automap and uri.endswith(".vcf"):
-            uri = uri.rstrip(".vcf") + ".ics"
+            uri = uri.removesuffix(".vcf") + ".ics"
 
     href.text = xmlutils.make_href(base_prefix, uri)
     response.append(href)

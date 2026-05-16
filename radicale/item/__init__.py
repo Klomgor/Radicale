@@ -592,7 +592,7 @@ class Item:
 
         href = self.href
         if href is not None:
-            href = href.rstrip(".vcf") + ".ics"
+            href = href.removesuffix(".vcf") + ".ics"
 
         etag = self.etag
         # replace 14 leading chars of etag "<hexdigits>" by special format bda0YYYYMMDD00
